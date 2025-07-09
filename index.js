@@ -1,6 +1,7 @@
 const express = require("express");
 const cors = require("cors");
 const app = express();
+var jwt = require("jsonwebtoken");
 require("dotenv").config();
 const port = process.env.PORT || 5000;
 
@@ -25,11 +26,56 @@ async function run() {
     // Connect the client to the server	(optional starting in v4.7)
     await client.connect();
 
+    let userCollection = client.db("bistroBoss").collection("users");
     let menuCollection = client.db("bistroBoss").collection("menus");
     let reviewCollection = client.db("bistroBoss").collection("reviews");
     let cartCollection = client.db("bistroBoss").collection("carts");
 
-    // Menus APIs
+    // User APIS ===========
+
+    // Insert a new user
+    app.post("/users", async (req, res) => {
+      let user = req.body;
+      // Check if user already exists
+      let query = { email: user.email };
+      let existingUser = await userCollection.findOne(query);
+      if (existingUser) {
+        return res.send({ message: "User already exists", insertedId: null });
+      }
+      // Insert new user
+      const result = await userCollection.insertOne(user);
+      res.send(result);
+    });
+
+    // get all users
+    app.get("/users", async (req, res) => {
+      let cursor = userCollection.find();
+      const result = await cursor.toArray();
+      res.send(result);
+    });
+
+    //delete a user
+    app.delete("/users/:id", async (req, res) => {
+      let id = req.params.id;
+      const query = { _id: new ObjectId(id) };
+      const result = await userCollection.deleteOne(query);
+      res.send(result);
+    });
+
+    // update user role as admin
+    app.patch("/users/admin/:id", async (req, res) => {
+      let id = req.params.id;
+      const query = { _id: new ObjectId(id) };
+      const updateDoc = {
+        $set: {
+          role: "admin",
+        },
+      };
+      let result = await userCollection.updateOne(query, updateDoc);
+      res.send(result);
+    });
+
+    // Menus APIs ==========
     app.get("/menus", async (req, res) => {
       let cursor = menuCollection.find();
       const result = await cursor.toArray();
