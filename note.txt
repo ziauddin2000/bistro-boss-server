@@ -1,0 +1,3 @@
+/* Need to paste in .env when working
+STRIPE_SECRET_KEY=sk_test_51RocGCK1bj2jjsVDPbsmtucVndEWdL4OAFuE0cIQqwK0wpimzyCkGrVUuf1Og02c3gFat69GSYMwAiBfFfjEWZOP009h0bjVTq
+*/
