@@ -2,6 +2,7 @@ const express = require("express");
 const cors = require("cors");
 const app = express();
 var jwt = require("jsonwebtoken");
+const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY); // coming from .env
 require("dotenv").config();
 const port = process.env.PORT || 5000;
 
@@ -53,16 +54,50 @@ async function run() {
         }
 
         // set user email to access later in api
-        req.user = decoded;
-
+        req.user = decoded.user;
         next();
       });
     };
 
+    // Verify Admin
+    let verifyAdmin = async (req, res, next) => {
+      let email = req.user.email;
+
+      console.log(email);
+      let query = { email: email };
+      let user = await userCollection.findOne(query);
+
+      let admin = user?.role === "admin";
+
+      if (!admin) {
+        return res.status(403).send({ message: "Forbidden access" });
+      }
+      next();
+    };
+
     // User APIS ===========
 
+    // check admin
+    app.get("/users/:email", verifyToken, async (req, res) => {
+      let email = req.params.email;
+
+      if (email !== req.user.email) {
+        return res.status(403).send({ message: "Forbidden access" });
+      }
+
+      let query = { email };
+      let user = await userCollection.findOne(query);
+
+      let admin = false;
+      if (user) {
+        admin = user?.role === "admin";
+      }
+
+      res.send(admin);
+    });
+
     // Insert a new user
-    app.post("/users", async (req, res) => {
+    app.post("/users", verifyToken, verifyAdmin, async (req, res) => {
       let user = req.body;
       // Check if user already exists
       let query = { email: user.email };
@@ -76,7 +111,7 @@ async function run() {
     });
 
     // get all users
-    app.get("/users", verifyToken, async (req, res) => {
+    app.get("/users", verifyToken, verifyAdmin, async (req, res) => {
       let cursor = userCollection.find();
       const result = await cursor.toArray();
       res.send(result);
@@ -107,6 +142,48 @@ async function run() {
     app.get("/menus", async (req, res) => {
       let cursor = menuCollection.find();
       const result = await cursor.toArray();
+      res.send(result);
+    });
+
+    app.post("/menu", verifyToken, verifyAdmin, async (req, res) => {
+      let data = req.body;
+      let result = await menuCollection.insertOne(data);
+      res.send(result);
+    });
+
+    app.get("/menu/:id", async (req, res) => {
+      let id = req.params.id;
+      let query = { _id: id };
+      let result = await menuCollection.findOne(query);
+      res.send(result);
+    });
+
+    app.patch("/menu/:id", async (req, res) => {
+      let id = req.params.id;
+      let menu = req.body;
+
+      let filter = { _id: id };
+
+      const updateDoc = {
+        $set: {
+          name: menu.name,
+          recipe: menu.recipe,
+          image: menu.image,
+          category: menu.category,
+          price: menu.price,
+        },
+      };
+
+      let result = await menuCollection.updateOne(filter, updateDoc);
+      res.send(result);
+    });
+
+    app.delete("/menu/:id", verifyToken, verifyAdmin, async (req, res) => {
+      let id = req.params.id;
+
+      let query = { _id: id }; // Programming heror old datay object Id nai
+      //let query = { _id: new ObjectId(id) }; // new entries record ey object id ace
+      let result = await menuCollection.deleteOne(query);
       res.send(result);
     });
 
@@ -142,6 +219,22 @@ async function run() {
       const query = { _id: new ObjectId(id) };
       const result = await cartCollection.deleteOne(query);
       res.send(result);
+    });
+
+    // Stripe Payment Intent
+    app.post("/create-payment-intent", async (req, res) => {
+      const { price } = req.body;
+      const amount = parseInt(price * 100); // Need to convert into paisa/cent --- Because step only handle full number not decimal
+
+      const paymentIntent = await stripe.paymentIntents.create({
+        amount: amount,
+        currency: "usd",
+        payment_methods_type: ["card"],
+      });
+
+      res.send({
+        clientSecret: paymentIntent.client_secret,
+      });
     });
 
     // Send a ping to confirm a successful connection
