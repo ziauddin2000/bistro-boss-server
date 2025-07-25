@@ -2,7 +2,13 @@ const express = require("express");
 const cors = require("cors");
 const app = express();
 var jwt = require("jsonwebtoken");
-const stripe = require("stripe")(process.env.PAYMENT_SECRET_KEY); // coming from .env
+const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY); // coming from .env
+
+/* Need to paste in .env when working
+
+STRIPE_SECRET_KEY=sk_test_51RocGCK1bj2jjsVDPbsmtucVndEWdL4OAFuE0cIQqwK0wpimzyCkGrVUuf1Og02c3gFat69GSYMwAiBfFfjEWZOP009h0bjVTq
+*/
+
 require("dotenv").config();
 const port = process.env.PORT || 5000;
 
