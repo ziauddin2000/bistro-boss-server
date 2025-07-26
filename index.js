@@ -2,10 +2,8 @@ const express = require("express");
 const cors = require("cors");
 const app = express();
 var jwt = require("jsonwebtoken");
-const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY); // coming from .env
-
-
 require("dotenv").config();
+const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY); // coming from .env
 const port = process.env.PORT || 5000;
 
 // Middleware
@@ -33,6 +31,7 @@ async function run() {
     let menuCollection = client.db("bistroBoss").collection("menus");
     let reviewCollection = client.db("bistroBoss").collection("reviews");
     let cartCollection = client.db("bistroBoss").collection("carts");
+    const paymentCollection = client.db("bistroBoss").collection("payments");
 
     // JWT API
     app.post("/jwt", (req, res) => {
@@ -223,20 +222,47 @@ async function run() {
       res.send(result);
     });
 
+    // Payments Releated API
+
     // Stripe Payment Intent
     app.post("/create-payment-intent", async (req, res) => {
       const { price } = req.body;
-      const amount = parseInt(price * 100); // Need to convert into paisa/cent --- Because step only handle full number not decimal
+      //const amount = parseInt(price * 100); // Need to convert into paisa/cent --- Because step only handle full number not decimal
+      const amount = Math.max(parseInt(price * 100), 50); // Ensure minimum amount is 50 cents (USD)
 
       const paymentIntent = await stripe.paymentIntents.create({
         amount: amount,
         currency: "usd",
-        payment_methods_type: ["card"],
+        payment_method_types: ["card"],
       });
 
       res.send({
         clientSecret: paymentIntent.client_secret,
       });
+    });
+
+    // After Payment
+    app.post("/payments", async (req, res) => {
+      const payment = req.body;
+      const paymentResult = await paymentCollection.insertOne(payment);
+
+      // Carefully delete each item from cart
+      const query = {
+        _id: {
+          $in: payment.cartIds.map((id) => new ObjectId(id)),
+        },
+      };
+      const deleteResult = await cartCollection.deleteMany(query);
+
+      res.send({ paymentResult, deleteResult });
+    });
+
+    // payments history
+    app.get("/payments/:email", async (req, res) => {
+      let email = req.params.email;
+      let query = { email };
+      let result = await paymentCollection.find(query).toArray();
+      res.send(result);
     });
 
     // Send a ping to confirm a successful connection
