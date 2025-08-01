@@ -6,6 +6,17 @@ require("dotenv").config();
 const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY); // coming from .env
 const port = process.env.PORT || 5000;
 
+const nodemailer = require("nodemailer");
+
+// Create a test account or replace with real credentials.
+const transporter = nodemailer.createTransport({
+  service: "gmail",
+  auth: {
+    user: "ziabackbencherstudio2000@gmail.com",
+    pass: "wgxjnjizzcbpecap",
+  },
+});
+
 // Middleware
 app.use(cors());
 app.use(express.json());
@@ -253,6 +264,15 @@ async function run() {
         },
       };
       const deleteResult = await cartCollection.deleteMany(query);
+
+      // Send Email After Payment Complete
+      const info = await transporter.sendMail({
+        from: '"Message From Bistro Boss" <maddison53@ethereal.email>',
+        to: "ziabackbencherstudio2000@gmail.com",
+        subject: "Order Confirmed",
+        text: "Hello world?",
+        html: `Your payment is successfully done. Your transaction id is - ${payment.transactionId}`,
+      });
 
       res.send({ paymentResult, deleteResult });
     });
